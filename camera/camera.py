@@ -6,6 +6,9 @@ class Camera:
     def __init__(self) -> None:
         pass
 
+    def connect_to_server(self) -> None:
+        pass
+
     def run(self) -> None:
         # TODO: Get all the cameras attached to the system.
         cap = cv2.VideoCapture(0)
