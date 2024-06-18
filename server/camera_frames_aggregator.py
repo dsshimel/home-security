@@ -1,7 +1,9 @@
 """Aggregates camera streams and serves a React app to view them."""
 
 # TODO: Consider using socketserver.UDPServer instead.
+import cv2
 import socket
+import numpy as np
 
 class CameraFramesAggregator:
 
@@ -35,7 +37,17 @@ class CameraFramesAggregator:
             try:
                 data, address = self.__socket.recvfrom(CameraFramesAggregator.UDP_BUFFER_SIZE)
                 print(f'Received {len(data)} bytes from {address}')
-                print(f'Data: {data}')
+
+                np_array = np.frombuffer(data, dtype=np.uint8)
+                frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
+                if frame is not None:
+                    cv2.imshow('Received Video', frame)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+                else:
+                    print("Failed to decode image.")
+
+                # print(f'Data: {data}')
             except socket.timeout:
                 continue
             except KeyboardInterrupt:
@@ -63,6 +75,7 @@ class CameraFramesAggregator:
 
     def _cleanup(self) -> None:
         self.__socket.close()
+        cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     server = CameraFramesAggregator()
