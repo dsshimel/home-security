@@ -12,30 +12,37 @@ class CameraFramesAggregator:
     PORT_HTTP = 80
     PORT_HTTPS = 443
     PORT_LISTEN_DEFAULT = 42069
+    UDP_BUFFER_SIZE = 65536
 
     def __init__(self) -> None:
         self.__ip_address = self._get_ip_address()
+        # For simplicity, we'll skip broadcasting our IP and port to the network for now.
 
+        # TODO: Given packet size constraints with UDP, consider using TCP/IP with SOCK_STREAM instead.
         # AF_INET is the address family for IPv4. SOCK_DGRAM is the socket type for UDP.
-        # self.__socket_broadcaster = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # self.__socket_broadcaster.sendto(b'Hello, world!', (CameraFramesAggregator.DEFAULT_NETWORK_BROADCAST_IP, CameraFramesAggregator.PORT_LISTEN_DEFAULT))
-
-        self.__socket_receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.__socket_receiver.bind((self.__ip_address, CameraFramesAggregator.PORT_LISTEN_DEFAULT))
         # Since this socket is for UDP, it is connectionless and therefore does not need to listen().
         # See https://stackoverflow.com/questions/8194323/why-the-listen-function-call-is-not-needed-when-use-udp-socket.
         # See https://superuser.com/questions/1096504/why-udp-does-not-show-listening-in-the-state-column-in-netstat
+        self.__socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.__socket.bind((self.__ip_address, CameraFramesAggregator.PORT_LISTEN_DEFAULT))
 
-        # print(self.__socket_receiver.getsockname())
+        # Set a timeout for the socket to prevent blocking indefinitely.
+        # On Windows, Ctrl+C wasn't working until I added this.
+        self.__socket.settimeout(1.0)
 
     def run(self) -> None:
-        # TODO: Broadcast this device's IP address to 192.168.1.255 so that clients can discover it
-        # TODO: Spawn a new thread to listen on the socket for camera frames from the clients
-        try:
-            while True:
-                pass
-        finally:
-            self._cleanup()
+        while True:
+            try:
+                data, address = self.__socket.recvfrom(CameraFramesAggregator.UDP_BUFFER_SIZE)
+                print(f'Received {len(data)} bytes from {address}')
+                print(f'Data: {data}')
+            except socket.timeout:
+                continue
+            except KeyboardInterrupt:
+                print('Server shutting down...')
+                break
+
+        self._cleanup()
 
     @property
     def device_ip(self):
@@ -48,15 +55,14 @@ class CameraFramesAggregator:
             # This causes the socket to be bound, but we're not going to use it after this.
             s.connect((CameraFramesAggregator.DEFAULT_ROUTER_IP, CameraFramesAggregator.PORT_HTTP))
         except Exception as e:
-            return 'Unable to determine IP address'
+            return f'Unable to get IP address: {e}'
         else:
             return s.getsockname()[0]
         finally:
             s.close()
 
     def _cleanup(self) -> None:
-        # self.__socket_broadcaster.close()
-        self.__socket_receiver.close()
+        self.__socket.close()
 
 if __name__ == '__main__':
     server = CameraFramesAggregator()
